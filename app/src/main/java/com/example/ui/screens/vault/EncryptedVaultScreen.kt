@@ -1,7 +1,12 @@
 package com.example.ui.screens.vault
 
+import android.app.Activity
+import android.app.KeyguardManager
+import android.content.Context
 import android.os.Environment
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Security
@@ -32,6 +38,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -76,6 +83,19 @@ fun EncryptedVaultScreen(
     var isUnlocked by remember { mutableStateOf(false) }
     var enteredPin by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+
+    val keyguardManager = remember { context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager }
+    val isDeviceSecure = remember { keyguardManager?.isDeviceSecure == true }
+
+    val biometricLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            if (enteredPin.isEmpty()) enteredPin = "0000"
+            isUnlocked = true
+            Toast.makeText(context, "Vault unlocked with device biometrics", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -171,6 +191,29 @@ fun EncryptedVaultScreen(
                             Icon(Icons.Default.LockOpen, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Unlock Vault")
+                        }
+
+                        if (isDeviceSecure) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    val intent = keyguardManager?.createConfirmDeviceCredentialIntent(
+                                        "Unlock Vault",
+                                        "Authenticate with fingerprint, face, or lock screen credential"
+                                    )
+                                    if (intent != null) {
+                                        biometricLauncher.launch(intent)
+                                    } else {
+                                        Toast.makeText(context, "Biometric authentication unavailable", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth().height(48.dp).testTag("vault_biometric_button")
+                            ) {
+                                Icon(Icons.Default.Fingerprint, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Biometric / Screen Lock")
+                            }
                         }
                     }
                 }

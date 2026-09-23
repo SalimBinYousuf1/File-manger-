@@ -102,7 +102,9 @@ class SalimMainViewModel(application: Application) : AndroidViewModel(applicatio
     val trashRetentionDays = prefsRepo.trashRetentionDaysFlow.stateIn(viewModelScope, SharingStarted.Eagerly, 30)
     val enableRoot = prefsRepo.enableRootFlow.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val appLockEnabled = prefsRepo.appLockEnabledFlow.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val rowDensity = prefsRepo.rowDensityFlow.stateIn(viewModelScope, SharingStarted.Eagerly, "STANDARD")
     val isAppUnlocked = MutableStateFlow(false)
+    val selectedTagFilter = MutableStateFlow<String?>(null)
 
     // Bookmarks, Recents, Trash, Apps, Vault
     val bookmarks = fileRepo.getBookmarks().stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
@@ -150,7 +152,10 @@ class SalimMainViewModel(application: Application) : AndroidViewModel(applicatio
                 sortDirection = sortDirection.value,
                 filterCategory = _selectedCategory.value,
                 searchQuery = _searchQuery.value
-            )
+            ).let { l ->
+                val tag = selectedTagFilter.value
+                if (tag != null) l.filter { it.folderColorHex == tag } else l
+            }
             _fileList.value = list
             _isLoadingFiles.value = false
             _selectedFilePaths.value = emptySet()
@@ -463,4 +468,21 @@ class SalimMainViewModel(application: Application) : AndroidViewModel(applicatio
         fileRepo.setFolderColor(path, colorHex)
         loadDirectory(_currentPath.value)
     }
+
+    fun setTagFilter(colorHex: String?) {
+        selectedTagFilter.value = colorHex
+        loadDirectory(_currentPath.value)
+    }
+
+    fun shredFile(path: String) = viewModelScope.launch {
+        fileRepo.shredFile(path)
+        refreshCurrentDirectory()
+    }
+
+    fun toggleNoMedia(directoryPath: String) = viewModelScope.launch {
+        fileRepo.toggleNoMedia(directoryPath)
+        loadDirectory(directoryPath)
+    }
+
+    fun hasNoMedia(directoryPath: String): Boolean = fileRepo.hasNoMedia(directoryPath)
 }

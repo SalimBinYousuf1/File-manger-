@@ -117,15 +117,26 @@ import com.example.ui.components.FileTypeIcon
 import com.example.ui.components.PropertiesBottomSheet
 import com.example.ui.components.RenameDialog
 import com.example.ui.components.SalimBreadcrumbBar
+import com.example.ui.components.ShredConfirmationDialog
+import com.example.ui.components.TagSelectionDialog
 import com.example.ui.theme.TabularStyle
 import kotlinx.coroutines.launch
 import java.io.File
+import androidx.compose.material.icons.filled.Difference
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileBrowserScreen(
     viewModel: SalimMainViewModel,
     onOpenFileInEditor: (String) -> Unit,
+    onOpenQuickLook: (String) -> Unit = {},
+    onOpenArchive: (String) -> Unit = {},
+    onOpenHex: (String) -> Unit = {},
+    onOpenDiff: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -144,12 +155,16 @@ fun FileBrowserScreen(
     val sortDirection by viewModel.sortDirection.collectAsState()
     val showHidden by viewModel.showHidden.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
+    val selectedTagFilter by viewModel.selectedTagFilter.collectAsState()
+    val rowDensity by viewModel.rowDensity.collectAsState()
     val operationProgress by viewModel.operationProgress.collectAsState()
 
     var showSortMenu by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf<Boolean?>(null) } // true: folder, false: file, null: closed
     var showRenameDialog by remember { mutableStateOf<FileItem?>(null) }
     var showDeleteDialog by remember { mutableStateOf<List<FileItem>?>(null) }
+    var showShredDialog by remember { mutableStateOf<FileItem?>(null) }
+    var showTagDialog by remember { mutableStateOf<FileItem?>(null) }
     var showBatchRenameDialog by remember { mutableStateOf(false) }
     var activeActionFile by remember { mutableStateOf<FileItem?>(null) }
     var inspectPropertiesFile by remember { mutableStateOf<FileItem?>(null) }
@@ -295,6 +310,23 @@ fun FileBrowserScreen(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Diff Compare button (Visible when exactly 2 files selected)
+                    if (selectedPaths.size == 2) {
+                        IconButton(
+                            onClick = {
+                                val list = selectedPaths.toList()
+                                onOpenDiff(list[0], list[1])
+                            },
+                            modifier = Modifier.testTag("compare_diff_button")
+                        ) {
+                            Icon(
+                                Icons.Default.Difference,
+                                contentDescription = "Compare Diff",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
                     // Split pane toggle
                     IconButton(
                         onClick = { viewModel.toggleSplitPane() },
@@ -467,6 +499,62 @@ fun FileBrowserScreen(
                 }
             }
 
+            // Finder Tag Filter Pills
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val tagList = listOf(
+                    null to "All Tags",
+                    "#FF3B30" to "Red",
+                    "#FF9500" to "Orange",
+                    "#FFCC00" to "Yellow",
+                    "#34C759" to "Green",
+                    "#0071E3" to "Blue",
+                    "#AF52DE" to "Purple",
+                    "#8E8E93" to "Slate"
+                )
+                tagList.forEach { (tagHex, label) ->
+                    val isSelected = selectedTagFilter == tagHex
+                    Surface(
+                        onClick = { viewModel.setTagFilter(if (isSelected && tagHex != null) null else tagHex) },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent,
+                        border = BorderStroke(
+                            1.dp,
+                            if (isSelected) MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (tagHex != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(android.graphics.Color.parseColor(tagHex)))
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                            }
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
             // Real Operation Progress Bar (if operation is running)
             if (operationProgress.isRunning) {
                 Column(
@@ -576,8 +664,9 @@ fun FileBrowserScreen(
                             files = fileList,
                             isLoading = isLoading,
                             viewMode = viewMode,
+                            rowDensity = rowDensity,
                             selectedPaths = selectedPaths,
-                            onFileClick = { file -> handleFileClick(file, context, viewModel, onOpenFileInEditor) },
+                            onFileClick = { file -> handleFileClick(file, context, viewModel, onOpenFileInEditor, onOpenQuickLook, onOpenArchive) },
                             onFileLongClick = { file -> activeActionFile = file },
                             onToggleSelect = { path -> viewModel.toggleSelection(path) },
                             onCreateFolder = { showCreateDialog = true }
@@ -603,12 +692,13 @@ fun FileBrowserScreen(
                                 files = splitFileList,
                                 isLoading = false,
                                 viewMode = viewMode,
+                                rowDensity = rowDensity,
                                 selectedPaths = emptySet(),
                                 onFileClick = { file ->
                                     if (file.isDirectory) {
                                         viewModel.loadSplitDirectory(file.path)
                                     } else {
-                                        handleFileClick(file, context, viewModel, onOpenFileInEditor)
+                                        handleFileClick(file, context, viewModel, onOpenFileInEditor, onOpenQuickLook, onOpenArchive)
                                     }
                                 },
                                 onFileLongClick = { file -> activeActionFile = file },
@@ -625,8 +715,9 @@ fun FileBrowserScreen(
                         files = fileList,
                         isLoading = isLoading,
                         viewMode = viewMode,
+                        rowDensity = rowDensity,
                         selectedPaths = selectedPaths,
-                        onFileClick = { file -> handleFileClick(file, context, viewModel, onOpenFileInEditor) },
+                        onFileClick = { file -> handleFileClick(file, context, viewModel, onOpenFileInEditor, onOpenQuickLook, onOpenArchive) },
                         onFileLongClick = { file -> activeActionFile = file },
                         onToggleSelect = { path -> viewModel.toggleSelection(path) },
                         onCreateFolder = { showCreateDialog = true }
@@ -671,6 +762,59 @@ fun FileBrowserScreen(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                ActionSheetItem(
+                    icon = Icons.Default.Visibility,
+                    label = "Quick Look",
+                    onClick = {
+                        activeActionFile = null
+                        onOpenQuickLook(file.path)
+                    }
+                )
+
+                if (file.extension == "zip") {
+                    ActionSheetItem(
+                        icon = Icons.Default.Archive,
+                        label = "Inspect Archive Contents",
+                        onClick = {
+                            activeActionFile = null
+                            onOpenArchive(file.path)
+                        }
+                    )
+                }
+
+                if (!file.isDirectory) {
+                    ActionSheetItem(
+                        icon = Icons.Default.Terminal,
+                        label = "Inspect Binary (Hex)",
+                        onClick = {
+                            activeActionFile = null
+                            onOpenHex(file.path)
+                        }
+                    )
+                }
+
+                ActionSheetItem(
+                    icon = Icons.Default.Palette,
+                    label = "Finder Tag",
+                    onClick = {
+                        val f = file
+                        activeActionFile = null
+                        showTagDialog = f
+                    }
+                )
+
+                if (file.isDirectory) {
+                    val isNoMedia = remember(file.path) { viewModel.hasNoMedia(file.path) }
+                    ActionSheetItem(
+                        icon = Icons.Default.VisibilityOff,
+                        label = if (isNoMedia) "Unhide Photos (.nomedia active)" else "Hide Photos (Add .nomedia)",
+                        onClick = {
+                            viewModel.toggleNoMedia(file.path)
+                            activeActionFile = null
+                        }
+                    )
+                }
 
                 ActionSheetItem(
                     icon = Icons.Default.Info,
@@ -758,6 +902,19 @@ fun FileBrowserScreen(
                     }
                 )
 
+                if (!file.isDirectory) {
+                    ActionSheetItem(
+                        icon = Icons.Default.Delete,
+                        label = "Forensic Shred (DoD 5220.22-M)",
+                        isDestructive = true,
+                        onClick = {
+                            val f = file
+                            activeActionFile = null
+                            showShredDialog = f
+                        }
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }
@@ -806,6 +963,28 @@ fun FileBrowserScreen(
             onConfirm = { permanent ->
                 viewModel.deleteFiles(files.map { it.path }, permanent)
                 showDeleteDialog = null
+            }
+        )
+    }
+
+    showShredDialog?.let { file ->
+        ShredConfirmationDialog(
+            itemName = file.name,
+            onDismiss = { showShredDialog = null },
+            onConfirm = {
+                viewModel.shredFile(file.path)
+                showShredDialog = null
+            }
+        )
+    }
+
+    showTagDialog?.let { file ->
+        TagSelectionDialog(
+            currentColorHex = file.folderColorHex,
+            onDismiss = { showTagDialog = null },
+            onSelectColor = { color ->
+                viewModel.setFolderColor(file.path, color)
+                showTagDialog = null
             }
         )
     }
@@ -863,6 +1042,7 @@ private fun FileListContent(
     files: List<FileItem>,
     isLoading: Boolean,
     viewMode: ViewMode,
+    rowDensity: String = "STANDARD",
     selectedPaths: Set<String>,
     onFileClick: (FileItem) -> Unit,
     onFileLongClick: (FileItem) -> Unit,
@@ -903,6 +1083,7 @@ private fun FileListContent(
                     FileRowItem(
                         item = item,
                         isSelected = isSelected,
+                        rowDensity = rowDensity,
                         onClick = {
                             if (selectedPaths.isNotEmpty()) {
                                 onToggleSelect(item.path)
@@ -959,6 +1140,7 @@ private fun FileListContent(
 private fun FileRowItem(
     item: FileItem,
     isSelected: Boolean,
+    rowDensity: String = "STANDARD",
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -966,6 +1148,17 @@ private fun FileRowItem(
         MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
     } else {
         Color.Transparent
+    }
+
+    val verticalPadding = when (rowDensity) {
+        "COMPACT" -> 5.dp
+        "SPACIOUS" -> 14.dp
+        else -> 10.dp
+    }
+    val iconSize = when (rowDensity) {
+        "COMPACT" -> 28.dp
+        "SPACIOUS" -> 44.dp
+        else -> 38.dp
     }
 
     Surface(
@@ -981,7 +1174,7 @@ private fun FileRowItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = verticalPadding),
             verticalAlignment = Alignment.CenterVertically
         ) {
             FileTypeIcon(
@@ -989,7 +1182,7 @@ private fun FileRowItem(
                 isDirectory = item.isDirectory,
                 fileName = item.name,
                 customColor = item.folderColorHex?.let { Color(android.graphics.Color.parseColor(it)) },
-                size = 38.dp
+                size = iconSize
             )
 
             Spacer(modifier = Modifier.width(14.dp))
@@ -1112,10 +1305,26 @@ private fun handleFileClick(
     file: FileItem,
     context: Context,
     viewModel: SalimMainViewModel,
-    onOpenFileInEditor: (String) -> Unit
+    onOpenFileInEditor: (String) -> Unit,
+    onOpenQuickLook: (String) -> Unit,
+    onOpenArchive: (String) -> Unit
 ) {
     if (file.isDirectory) {
         viewModel.loadDirectory(file.path)
+        return
+    }
+
+    // Zip archives open inside built-in Archive Explorer
+    if (file.extension == "zip") {
+        onOpenArchive(file.path)
+        return
+    }
+
+    // Media & PDF files open directly in Apple-like Quick Look
+    if (file.category in setOf(FileCategory.IMAGE, FileCategory.VIDEO, FileCategory.AUDIO) ||
+        file.extension in setOf("pdf", "jpg", "jpeg", "png", "webp", "gif", "mp4", "mp3", "m4a", "wav")
+    ) {
+        onOpenQuickLook(file.path)
         return
     }
 
@@ -1125,7 +1334,7 @@ private fun handleFileClick(
         return
     }
 
-    // Media & other documents open via Android Intent
+    // Fallback: try Intent or Quick Look preview
     try {
         val f = File(file.path)
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", f)
@@ -1136,6 +1345,6 @@ private fun handleFileClick(
         }
         context.startActivity(intent)
     } catch (e: Exception) {
-        Toast.makeText(context, "No app available to open this file", Toast.LENGTH_SHORT).show()
+        onOpenQuickLook(file.path)
     }
 }

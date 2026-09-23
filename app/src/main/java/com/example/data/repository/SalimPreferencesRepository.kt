@@ -28,9 +28,11 @@ class SalimPreferencesRepository(private val context: Context) {
         val KEY_ENABLE_ROOT = booleanPreferencesKey("enable_root_access")
         val KEY_APP_LOCK_ENABLED = booleanPreferencesKey("app_lock_enabled")
         val KEY_PASSCODE = stringPreferencesKey("app_passcode")
+        val KEY_ROW_DENSITY = stringPreferencesKey("row_density")
     }
 
     val themeFlow: Flow<String> = context.dataStore.data.map { it[KEY_THEME] ?: "SYSTEM" }
+    val rowDensityFlow: Flow<String> = context.dataStore.data.map { it[KEY_ROW_DENSITY] ?: "STANDARD" }
     val viewModeFlow: Flow<ViewMode> = context.dataStore.data.map {
         when (it[KEY_VIEW_MODE]) {
             "GRID" -> ViewMode.GRID
@@ -72,4 +74,5 @@ class SalimPreferencesRepository(private val context: Context) {
         it[KEY_APP_LOCK_ENABLED] = enabled
         if (passcode != null) it[KEY_PASSCODE] = passcode
     }
+    suspend fun setRowDensity(density: String) = context.dataStore.edit { it[KEY_ROW_DENSITY] = density }
 }

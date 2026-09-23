@@ -2,10 +2,17 @@ package com.example
 
 import com.example.data.model.FileCategory
 import com.example.data.model.FileItem
+import com.example.util.ArchiveExplorer
 import com.example.util.CryptoUtils
+import com.example.util.DiffType
+import com.example.util.FileShredder
+import com.example.util.HexInspector
 import com.example.util.MimeUtils
+import com.example.util.TextDiffTool
 import com.example.util.ZipUtils
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -93,5 +100,54 @@ class SalimLogicTest {
     val extractDir = tempFolder.newFolder("extracted")
     val extractedCount = ZipUtils.unzipFile(zipFile, extractDir)
     assertTrue(extractedCount >= 2)
+  }
+
+  @Test
+  fun testFileShredder() = runBlocking {
+    val secretFile = tempFolder.newFile("confidential.txt")
+    secretFile.writeText("Top secret government record to be shredded.")
+    assertTrue(secretFile.exists())
+
+    val success = FileShredder.shred(secretFile)
+    assertTrue(success)
+    assertFalse(secretFile.exists())
+  }
+
+  @Test
+  fun testArchiveExplorer() = runBlocking {
+    val dirToZip = tempFolder.newFolder("archive_src")
+    File(dirToZip, "itemA.txt").writeText("Alpha")
+    File(dirToZip, "itemB.txt").writeText("Beta")
+
+    val zipFile = File(tempFolder.root, "inspect.zip")
+    ZipUtils.zipFiles(listOf(dirToZip), zipFile)
+
+    val entries = ArchiveExplorer.listEntries(zipFile)
+    assertTrue(entries.isNotEmpty())
+    assertTrue(entries.any { it.name.contains("itemA.txt") })
+  }
+
+  @Test
+  fun testHexInspector() = runBlocking {
+    val hexFile = tempFolder.newFile("binary_demo.bin")
+    hexFile.writeBytes(byteArrayOf(0x48, 0x65, 0x6C, 0x6C, 0x6F)) // "Hello"
+
+    val rows = HexInspector.readHexPage(hexFile, startOffset = 0L, length = 16)
+    assertEquals(1, rows.size)
+    assertEquals("00000000", rows[0].offsetHex)
+    assertTrue(rows[0].hexValues.startsWith("48 65 6C 6C 6F") || rows[0].hexValues.startsWith("48 65 6c 6c 6f"))
+    assertTrue(rows[0].asciiString.startsWith("Hello"))
+  }
+
+  @Test
+  fun testTextDiffTool() = runBlocking {
+    val file1 = tempFolder.newFile("version1.txt")
+    val file2 = tempFolder.newFile("version2.txt")
+    file1.writeText("Line 1\nLine 2\nLine 3\n")
+    file2.writeText("Line 1\nLine 2 Modified\nLine 3\nLine 4 Added\n")
+
+    val diff = TextDiffTool.computeDiff(file1, file2)
+    assertTrue(diff.any { it.type == DiffType.ADDED && it.text.contains("Line 4 Added") })
+    assertTrue(diff.any { it.type == DiffType.SAME && it.text == "Line 1" })
   }
 }

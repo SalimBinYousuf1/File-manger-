@@ -607,3 +607,120 @@ fun RootDisclosureDialog(
         shape = RoundedCornerShape(20.dp)
     )
 }
+
+@Composable
+fun ShredConfirmationDialog(
+    itemName: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Shred File Permanently?",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    text = "DoD 5220.22-M Forensic Overwrite:",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "The contents of '$itemName' will be overwritten 3 times (random cryptographic bytes, 0xFF, and 0x00), flushed to hardware, renamed, and destroyed. " +
+                            "This data cannot be recovered by any file recovery software.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.testTag("confirm_shred_button")
+            ) {
+                Text("Shred File")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+        shape = RoundedCornerShape(20.dp)
+    )
+}
+
+@Composable
+fun TagSelectionDialog(
+    currentColorHex: String?,
+    onDismiss: () -> Unit,
+    onSelectColor: (String?) -> Unit
+) {
+    val tags = listOf(
+        null to "None",
+        "#FF3B30" to "Red",
+        "#FF9500" to "Orange",
+        "#FFCC00" to "Yellow",
+        "#34C759" to "Green",
+        "#0071E3" to "Blue",
+        "#AF52DE" to "Purple",
+        "#8E8E93" to "Slate"
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Finder Tag",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                tags.forEach { (hex, name) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelectColor(hex) }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(18.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (hex != null) Color(android.graphics.Color.parseColor(hex))
+                                    else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                )
+                                .border(
+                                    1.dp,
+                                    if (currentColorHex == hex) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                    CircleShape
+                                )
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = name,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = if (currentColorHex == hex) FontWeight.Bold else FontWeight.Normal
+                            )
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        },
+        shape = RoundedCornerShape(20.dp)
+    )
+}

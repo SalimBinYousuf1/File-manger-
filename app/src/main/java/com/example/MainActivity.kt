@@ -52,9 +52,13 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.ui.SalimMainViewModel
 import com.example.ui.screens.apps.AppManagerScreen
+import com.example.ui.screens.archive.ArchiveExplorerScreen
 import com.example.ui.screens.browser.FileBrowserScreen
 import com.example.ui.screens.cleaner.StorageCleanerScreen
+import com.example.ui.screens.diff.FileDiffScreen
 import com.example.ui.screens.editor.TextEditorScreen
+import com.example.ui.screens.hex.HexInspectorScreen
+import com.example.ui.screens.quicklook.QuickLookViewerScreen
 import com.example.ui.screens.settings.SettingsScreen
 import com.example.ui.screens.storage.StorageOverviewScreen
 import com.example.ui.screens.trash.TrashScreen
@@ -69,7 +73,11 @@ enum class SalimScreen {
     TEXT_EDITOR,
     TRASH,
     APPS_MANAGER,
-    VAULT
+    VAULT,
+    ARCHIVE_EXPLORER,
+    HEX_INSPECTOR,
+    FILE_DIFF,
+    QUICK_LOOK
 }
 
 class MainActivity : ComponentActivity() {
@@ -98,6 +106,10 @@ class MainActivity : ComponentActivity() {
 fun SalimApp(viewModel: SalimMainViewModel) {
     var currentScreen by remember { mutableStateOf(SalimScreen.BROWSER) }
     var activeEditorFilePath by remember { mutableStateOf<String?>(null) }
+    var activeQuickLookPath by remember { mutableStateOf<String?>(null) }
+    var activeArchivePath by remember { mutableStateOf<String?>(null) }
+    var activeHexPath by remember { mutableStateOf<String?>(null) }
+    var activeDiffPaths by remember { mutableStateOf<Pair<String, String>?>(null) }
     var hasStoragePermission by remember {
         mutableStateOf(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -241,6 +253,22 @@ fun SalimApp(viewModel: SalimMainViewModel) {
                             onOpenFileInEditor = { path ->
                                 activeEditorFilePath = path
                                 currentScreen = SalimScreen.TEXT_EDITOR
+                            },
+                            onOpenQuickLook = { path ->
+                                activeQuickLookPath = path
+                                currentScreen = SalimScreen.QUICK_LOOK
+                            },
+                            onOpenArchive = { path ->
+                                activeArchivePath = path
+                                currentScreen = SalimScreen.ARCHIVE_EXPLORER
+                            },
+                            onOpenHex = { path ->
+                                activeHexPath = path
+                                currentScreen = SalimScreen.HEX_INSPECTOR
+                            },
+                            onOpenDiff = { pathA, pathB ->
+                                activeDiffPaths = Pair(pathA, pathB)
+                                currentScreen = SalimScreen.FILE_DIFF
                             }
                         )
                     }
@@ -302,6 +330,51 @@ fun SalimApp(viewModel: SalimMainViewModel) {
                             viewModel = viewModel,
                             onBack = { currentScreen = SalimScreen.STORAGE }
                         )
+                    }
+                    SalimScreen.QUICK_LOOK -> {
+                        activeQuickLookPath?.let { path ->
+                            QuickLookViewerScreen(
+                                filePath = path,
+                                onBack = {
+                                    activeQuickLookPath = null
+                                    currentScreen = SalimScreen.BROWSER
+                                }
+                            )
+                        }
+                    }
+                    SalimScreen.ARCHIVE_EXPLORER -> {
+                        activeArchivePath?.let { path ->
+                            ArchiveExplorerScreen(
+                                zipPath = path,
+                                onBack = {
+                                    activeArchivePath = null
+                                    currentScreen = SalimScreen.BROWSER
+                                }
+                            )
+                        }
+                    }
+                    SalimScreen.HEX_INSPECTOR -> {
+                        activeHexPath?.let { path ->
+                            HexInspectorScreen(
+                                filePath = path,
+                                onBack = {
+                                    activeHexPath = null
+                                    currentScreen = SalimScreen.BROWSER
+                                }
+                            )
+                        }
+                    }
+                    SalimScreen.FILE_DIFF -> {
+                        activeDiffPaths?.let { (pathA, pathB) ->
+                            FileDiffScreen(
+                                fileAPath = pathA,
+                                fileBPath = pathB,
+                                onBack = {
+                                    activeDiffPaths = null
+                                    currentScreen = SalimScreen.BROWSER
+                                }
+                            )
+                        }
                     }
                 }
             }

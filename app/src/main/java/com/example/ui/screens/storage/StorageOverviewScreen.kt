@@ -41,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,6 +57,8 @@ import com.example.data.model.FileItem
 import com.example.ui.SalimMainViewModel
 import com.example.ui.components.FileTypeIcon
 import com.example.ui.components.SalimStorageBar
+import com.example.ui.components.StorageTreemapView
+import com.example.ui.components.TreemapNode
 import com.example.ui.theme.TabularStyle
 
 @Composable
@@ -102,6 +105,37 @@ fun StorageOverviewScreen(
         // Live Proportional Storage Bar
         item {
             SalimStorageBar(breakdown = breakdown)
+        }
+
+        // Space Treemap
+        item {
+            val treemapNodes = remember(breakdown) {
+                listOf(
+                    TreemapNode("Images", "images", breakdown.imagesBytes, Color(0xFF0071E3)),
+                    TreemapNode("Videos", "videos", breakdown.videosBytes, Color(0xFF34C759)),
+                    TreemapNode("Docs", "docs", breakdown.documentsBytes, Color(0xFFFF9500)),
+                    TreemapNode("Audio", "audio", breakdown.audioBytes, Color(0xFFFF2D55)),
+                    TreemapNode("Archives", "archives", breakdown.archivesBytes, Color(0xFF5856D6)),
+                    TreemapNode("Apps", "apps", breakdown.appsBytes, Color(0xFFAF52DE)),
+                    TreemapNode("Other", "other", breakdown.otherBytes, Color(0xFF8E8E93))
+                ).filter { it.size > 0 }
+            }
+            if (treemapNodes.isNotEmpty()) {
+                StorageTreemapView(
+                    nodes = treemapNodes,
+                    onNodeClick = { node ->
+                        when (node.name) {
+                            "Images" -> onNavigateToCategory(FileCategory.IMAGE)
+                            "Videos" -> onNavigateToCategory(FileCategory.VIDEO)
+                            "Docs" -> onNavigateToCategory(FileCategory.DOCUMENT)
+                            "Audio" -> onNavigateToCategory(FileCategory.AUDIO)
+                            "Archives" -> onNavigateToCategory(FileCategory.ARCHIVE)
+                            "Apps" -> onNavigateToCategory(FileCategory.APK)
+                            else -> {}
+                        }
+                    }
+                )
+            }
         }
 
         // Quick Navigation Tiles (Cleaner, Apps, Trash, Vault)

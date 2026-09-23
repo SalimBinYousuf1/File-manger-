@@ -23,6 +23,7 @@ import com.example.data.model.SortField
 import com.example.data.model.StorageCategoryBreakdown
 import com.example.data.model.StorageVolumeInfo
 import com.example.util.CryptoUtils
+import com.example.util.FileShredder
 import com.example.util.MimeUtils
 import com.example.util.ZipUtils
 import kotlinx.coroutines.Dispatchers
@@ -1090,5 +1091,28 @@ class FileSystemRepository(
                 isLocked = existing?.isLocked ?: false
             )
         )
+    }
+
+    suspend fun shredFile(path: String, onProgress: (Float) -> Unit = {}): Boolean = withContext(Dispatchers.IO) {
+        val file = File(path)
+        FileShredder.shred(file, onProgress)
+    }
+
+    fun hasNoMedia(directoryPath: String): Boolean {
+        val dir = File(directoryPath)
+        return File(dir, ".nomedia").exists()
+    }
+
+    suspend fun toggleNoMedia(directoryPath: String): Boolean = withContext(Dispatchers.IO) {
+        val dir = File(directoryPath)
+        if (!dir.exists() || !dir.isDirectory) return@withContext false
+        val noMedia = File(dir, ".nomedia")
+        if (noMedia.exists()) {
+            noMedia.delete()
+            false
+        } else {
+            noMedia.createNewFile()
+            true
+        }
     }
 }

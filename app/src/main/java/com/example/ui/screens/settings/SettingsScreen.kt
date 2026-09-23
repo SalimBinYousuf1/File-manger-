@@ -109,6 +109,28 @@ fun SettingsScreen(
             }
 
             item {
+                val density by viewModel.rowDensity.collectAsState()
+                SectionHeader("Layout Density")
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        ThemeOption(label = "Compact (Dense list)", selected = density == "COMPACT", onSelect = {
+                            scope.launch { viewModel.prefsRepo.setRowDensity("COMPACT") }
+                        })
+                        ThemeOption(label = "Standard (Balanced)", selected = density == "STANDARD", onSelect = {
+                            scope.launch { viewModel.prefsRepo.setRowDensity("STANDARD") }
+                        })
+                        ThemeOption(label = "Spacious (Large touch targets)", selected = density == "SPACIOUS", onSelect = {
+                            scope.launch { viewModel.prefsRepo.setRowDensity("SPACIOUS") }
+                        })
+                    }
+                }
+            }
+
+            item {
                 SectionHeader("Files & Browsing")
                 Surface(
                     shape = RoundedCornerShape(16.dp),
